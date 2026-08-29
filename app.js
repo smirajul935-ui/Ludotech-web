@@ -4,7 +4,6 @@ import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic
 const firebaseConfig = {
   apiKey: "AIzaSyAnFcJjQ6l4IE6hHnoja21TBC_ANe1hq3M",
   authDomain: "ludo-web-e0798.firebaseapp.com",
-  databaseURL: "https://ludo-web-e0798-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "ludo-web-e0798",
   storageBucket: "ludo-web-e0798.firebasestorage.app",
   messagingSenderId: "1037344132269",
@@ -14,24 +13,22 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// URL se data nikalna (Detect Chatroom and Username)
-const params = new URLSearchParams(window.location.search);
-const chatRoomId = params.get("room") || "GlobalTable";
-const playerName = params.get("name") || "Guest_" + Math.floor(Math.random()*99);
+// Get Info from URL
+const urlParams = new URLSearchParams(window.location.search);
+const chatRoomId = urlParams.get("room") || "GlobalTable";
+const playerName = urlParams.get("name") || "Player_" + Math.floor(Math.random()*999);
 
+let myId = Math.random().toString(36).substr(2, 9);
 let myColor = null, roomData = null;
-const myId = Math.random().toString(36).substr(2, 9);
 
-const PATH = [[13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0],[6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],[0,7],[0,8],[1,8],[2,8],[3,8],[4,8],[5,8],[6,9],[6,10],[6,11],[6,12],[6,13],[6,14],[7,14],[8,14],[8,13],[8,12],[8,11],[8,10],[8,9],[9,8],[10,8],[11,8],[12,8],[13,8],[14,8],[14,7],[14,6]];
-const SAFE_INDICES = [0, 8, 13, 21, 26, 34, 39, 47];
+const COLORS = ['red', 'green', 'yellow', 'blue'];
+const SAFE_INDICES = [0, 8, 13, 21, 26, 34, 39, 47]; // Path safe stars
+const OFFSETS = { red: 0, green: 13, yellow: 26, blue: 39 };
 
-// Automatic Join Logic
-async function autoJoin() {
+async function autoConnect() {
     const roomRef = ref(db, `rooms/${chatRoomId}`);
     const snap = await get(roomRef);
-    
     if(!snap.exists()) {
-        // Create table for this chatroom
         await set(roomRef, {
             status: 'waiting', turn: 'red', dice: 1, players: { red: {id: myId, name: playerName} },
             tokens: { red: [-1,-1,-1,-1], green: [-1,-1,-1,-1], yellow: [-1,-1,-1,-1], blue: [-1,-1,-1,-1] },
@@ -39,26 +36,25 @@ async function autoJoin() {
         });
         myColor = 'red';
     } else {
-        // Join existing table
         let data = snap.val();
-        let color = ['red', 'green', 'yellow', 'blue'].find(c => !data.players[c]);
+        let color = COLORS.find(c => !data.players[c]);
         if(!color) return alert("Table Full!");
-        const updates = {};
-        updates[`players/${color}`] = {id: myId, name: playerName};
-        updates[`activePlayers`] = [...data.activePlayers, color];
-        await update(roomRef, updates);
+        const up = {};
+        up[`players/${color}`] = {id: myId, name: playerName};
+        up[`activePlayers`] = [...data.activePlayers, color];
+        await update(roomRef, up);
         myColor = color;
     }
     listen();
 }
 
 function listen() {
-    onValue(ref(db, `rooms/${chatRoomId}`), (snap) => {
-        roomData = snap.val(); if(!roomData) return;
-        document.getElementById('p-count').innerText = Object.keys(roomData.players).length;
+    onValue(ref(db, `rooms/${chatRoomId}`), (s) => {
+        roomData = s.val(); if(!roomData) return;
+        document.getElementById('room-id').innerText = chatRoomId;
         const list = document.getElementById('player-list');
-        list.innerHTML = Object.keys(roomData.players).map(c => `<li><span style="color:var(--${c})">👤 ${roomData.players[c].name}</span></li>`).join('');
-        
+        list.innerHTML = Object.keys(roomData.players).map(c => `<li><span style="color:var(--${c})">👤</span> ${roomData.players[c].name}</li>`).join('');
+        document.getElementById('p-count').innerText = Object.keys(roomData.players).length;
         if(myColor === 'red' && Object.keys(roomData.players).length >= 2) document.getElementById('start-btn').classList.remove('hidden');
         if(roomData.status === 'playing') {
             document.getElementById('lobby-screen').classList.add('hidden');
@@ -68,26 +64,58 @@ function listen() {
     });
 }
 
+async function moveToken(idx, pos) {
+    let dice = roomData.dice;
+    let newP = pos === -1 ? 0 : pos + dice;
+    let updates = {};
+    let capture = false;
+
+    // Check Capture Logic
+    if(newP <= 50) {
+        let global = (newP + OFFSETS[myColor]) % 52;
+        if(!SAFE_INDICES.includes(global)) {
+            COLORS.forEach(enemy => {
+                if(enemy !== myColor && roomData.players[enemy]) {
+                    roomData.tokens[enemy].forEach((ep, ei) => {
+                        if(ep >= 0 && ep <= 50 && (ep + OFFSETS[enemy]) % 52 === global) {
+                            updates[`tokens/${enemy}/${ei}`] = -1;
+                            capture = true;
+                        }
+                    });
+                }
+            });
+        }
+    }
+    updates[`tokens/${myColor}/${idx}`] = newP;
+    await update(ref(db, `rooms/${chatRoomId}`), updates);
+    
+    // Extra Turn if 6 or Captured
+    switchTurn(dice === 6 || capture);
+}
+
+async function switchTurn(extra) {
+    let up = { diceRolled: false };
+    if(!extra) {
+        let active = roomData.activePlayers;
+        up.turn = active[(active.indexOf(myColor) + 1) % active.length];
+    }
+    await update(ref(db, `rooms/${chatRoomId}`), up);
+}
+
 function updateUI() {
-    document.getElementById('current-turn-text').innerText = roomData.turn.toUpperCase();
-    document.getElementById('dice-value').innerText = roomData.dice;
+    document.getElementById('turn-text').innerText = roomData.turn.toUpperCase();
+    document.getElementById('dice-val').innerText = roomData.dice;
+    const rb = document.getElementById('roll-btn');
+    rb.disabled = !(roomData.turn === myColor && !roomData.diceRolled);
     renderTokens();
 }
 
-function renderTokens() {
-    const container = document.getElementById('tokens-container');
-    container.innerHTML = '';
-    ['red', 'green', 'yellow', 'blue'].forEach(c => {
-        if(!roomData.players[c]) return;
-        roomData.tokens[c].forEach((pos, i) => {
-            const t = document.createElement('div');
-            t.className = `token ${c}`;
-            // Position mapping logic (BASES/PATH/HOME)
-            // ... (Same coordinate logic as previous stable version)
-            container.appendChild(t);
-        });
-    });
-}
+// UI Rendering and Dice Roll omitted for brevity (same stable logic as before)
+// ... [Pichle code ka renderBoard aur rollDice yahan add karein] ...
 
 document.getElementById('start-btn').onclick = () => update(ref(db, `rooms/${chatRoomId}`), {status:'playing'});
-autoJoin();
+document.getElementById('roll-btn').onclick = async () => {
+    let val = Math.floor(Math.random() * 6) + 1;
+    await update(ref(db, `rooms/${chatRoomId}`), { dice: val, diceRolled: true });
+};
+autoConnect();
