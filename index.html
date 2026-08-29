@@ -3,42 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SagarTech99 Ludo Pro</title>
+    <title>SagarTech99 - Auto Ludo</title>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="game-container">
-        <!-- 1. Lobby Screen -->
+    <div id="app">
+        <!-- 1. Auto-Lobby Screen -->
         <div id="lobby-screen" class="screen">
             <div class="lobby-card">
-                <h2>WAITING FOR PLAYERS</h2>
-                <div class="code-box">
-                    <h1 id="room-id">DETECTING...</h1>
-                    <span class="star-icon">★</span>
+                <div class="lobby-header">
+                    <div class="users-icon">👥</div>
+                    <h2>CHATROOM TABLE</h2>
+                    <p id="table-id-text">Connecting...</p>
                 </div>
-                <div class="player-count">Players: <span id="p-count">0</span>/4</div>
-                <ul id="player-list"></ul>
-                <button id="start-btn" class="btn hidden">START GAME</button>
-                <p class="blink">Waiting for Chatroom members...</p>
+                <div class="player-count-bar">PLAYERS: <span id="p-count">0</span> / 4</div>
+                <ul id="player-list" class="neon-list"></ul>
+                <div id="host-controls" class="hidden">
+                    <button id="start-btn" class="btn-neon green">START GAME</button>
+                </div>
+                <p class="blink">Waiting for other members...</p>
             </div>
             <div class="brand">SagarTech99</div>
         </div>
 
         <!-- 2. Game Screen -->
         <div id="game-screen" class="screen hidden">
-            <div class="game-header">
+            <div class="game-ui-header">
                 <div class="pill">TURN: <span id="turn-text">---</span></div>
                 <div class="pill">⏱ <span id="timer">30</span>s</div>
             </div>
-            <div class="board-container">
-                <div class="ludo-board" id="ludo-board"></div>
+            <div class="board-wrapper">
+                <div id="ludo-board" class="ludo-grid"></div>
                 <div id="tokens-layer"></div>
             </div>
-            <div class="game-footer">
-                <div class="dice-box">
-                    <div id="dice-val">⚄</div>
-                    <button id="roll-btn" disabled>ROLL</button>
+            <div class="game-ui-footer">
+                <div class="dice-container">
+                    <div id="dice-val">🎲</div>
+                    <button id="roll-btn" class="btn-roll" disabled>ROLL</button>
                 </div>
                 <div class="brand">SagarTech99</div>
             </div>
